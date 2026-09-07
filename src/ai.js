@@ -7,7 +7,7 @@ import { toolDefs, runTool } from "./tools/index.js";
 import { memory } from "./memory.js";
 
 const client = new OpenAI({ apiKey: config.openai.apiKey });
-const MAX_TOOL_ROUNDS = 4;
+const MAX_TOOL_ROUNDS = 8;
 
 export async function generateReply(chatId, userText) {
   const ctx = { chatId, locked: false };
