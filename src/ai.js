@@ -16,12 +16,12 @@ export async function generateReply(chatId, userText) {
   const newItems = [{ role: "user", content: userText }];
 
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
-    const res = await client.responses.create({
+        const res = await client.responses.create({
       model: config.openai.model,
       instructions: systemPrompt, // statis di depan → kena prompt cache
       input,
       tools: toolDefs,
-      // reasoning/text settings bisa ditambah di sini kalau modelnya mendukung
+      reasoning: { effort: "low" },
     });
 
     const calls = res.output.filter((o) => o.type === "function_call");
@@ -33,13 +33,13 @@ export async function generateReply(chatId, userText) {
       return { text, locked: ctx.locked };
     }
 
-    // Jalankan semua tool call, masukkan hasilnya, lalu putar lagi
+    // Kirim balik SELURUH output (termasuk item reasoning — wajib untuk model gpt-5/o-series)
+    input.push(...res.output);
     for (const call of calls) {
       let args = {};
       try { args = JSON.parse(call.arguments || "{}"); } catch {}
       const result = await runTool(call.name, args, ctx);
       console.log(`[tool] ${chatId} ${call.name}(${JSON.stringify(args)})`);
-      input.push(call);
       input.push({ type: "function_call_output", call_id: call.call_id, output: JSON.stringify(result) });
     }
   }
