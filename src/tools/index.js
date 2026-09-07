@@ -51,6 +51,24 @@ export const tools = [
   {
     def: {
       type: "function",
+      name: "switch_language",
+      description: "Call this when the customer asks to change the conversation language (e.g. 'use English', 'talk in Arabic', 'بالعربي', 'English please'). After calling it, continue your reply in the new language.",
+      parameters: {
+        type: "object",
+        properties: { language: { type: "string", enum: ["en", "ar"] } },
+        required: ["language"],
+      },
+    },
+    handler: async ({ language }, ctx) => {
+      await memory.setLang(ctx.chatId, language);
+      ctx.lang = language;
+      console.log(`[lang] ${ctx.chatId} → ${language}`);
+      return { ok: true, language, instruction: `Reply in ${language === "ar" ? "Arabic" : "English"} from now on.` };
+    },
+  },
+  {
+    def: {
+      type: "function",
       name: "mark_off_topic",
       description: "Call this EVERY time the customer asks something unrelated to BON Cafe, before you reply. Returns the warning count. If it returns locked=true, do not write a reply — the system will send the lock message.",
       parameters: {

@@ -10,7 +10,7 @@ const client = new OpenAI({ apiKey: config.openai.apiKey });
 const MAX_TOOL_ROUNDS = 8;
 
 export async function generateReply(chatId, userText, lang = "en") {
-  const ctx = { chatId, locked: false };
+  const ctx = { chatId, locked: false, lang };
   const history = await memory.get(chatId);
   const input = [...history, { role: "user", content: userText }];
   const newItems = [{ role: "user", content: userText }];
@@ -18,7 +18,7 @@ export async function generateReply(chatId, userText, lang = "en") {
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
     const res = await client.responses.create({
       model: config.openai.model,
-      instructions: systemPrompt + "\n\n" + languageLine(lang), // bagian statis di depan → kena prompt cache
+      instructions: systemPrompt + "\n\n" + languageLine(ctx.lang), // bagian statis di depan → kena prompt cache
       input,
       tools: toolDefs,
       ...(config.openai.reasoningEffort ? { reasoning: { effort: config.openai.reasoningEffort } } : {}),

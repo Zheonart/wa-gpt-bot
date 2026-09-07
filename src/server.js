@@ -74,8 +74,16 @@ app.post("/webhook", async (req, res) => {
     enqueue(id, async () => {
       if (await memory.isLocked(id)) return; // terkunci saat pesan masih di buffer
 
-      // ── Sesi harian: belum pilih bahasa hari ini? ──
+      // ── Ganti bahasa kapan pun lewat pesan pendek: "english", "2", "عربي" ──
       let lang = await memory.getLang(id);
+      const quick = parseLangChoice(combined);
+      if (lang && quick && quick !== lang) {
+        await memory.setLang(id, quick);
+        await waha.sendText(id, WELCOME[quick]);
+        return;
+      }
+
+      // ── Sesi harian: belum pilih bahasa hari ini? ──
       if (!lang) {
         const choice = parseLangChoice(combined);
         if (!choice) {
