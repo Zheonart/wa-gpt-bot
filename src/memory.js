@@ -18,6 +18,8 @@ const strikes = new Map(); // chatId -> { n, exp }
 const langs = new Map();   // chatId -> { lang, exp }
 const pending = new Map(); // chatId -> { text, exp }
 const memExp = new Map();  // chatId -> exp riwayat (fallback tanpa Redis)
+const tickets = new Map(); // ticket -> record (fallback)
+let ticketSeq = 0;
 const locks = new Map();   // chatId -> untilTimestamp
 const STRIKE_TTL = 6 * 60 * 60;
 
@@ -54,6 +56,23 @@ export const memory = {
   async clear(chatId) {
     if (redis) await redis.del(key(chatId), `strike:${chatId}`, `lock:${chatId}`, `lang:${chatId}`, `pending:${chatId}`);
     else { mem.delete(chatId); memExp.delete(chatId); strikes.delete(chatId); locks.delete(chatId); langs.delete(chatId); pending.delete(chatId); }
+  },
+
+  // ── Tiket komplain ──
+  async nextTicket() {
+    let n;
+    if (redis) {
+      n = await redis.incr("ticket:seq");
+      if (n === 1) { await redis.set("ticket:seq", config.ticketStart); n = config.ticketStart; }
+    } else {
+      ticketSeq = ticketSeq ? ticketSeq + 1 : config.ticketStart;
+      n = ticketSeq;
+    }
+    return `CS-${n}`;
+  },
+  async saveTicket(rec) {
+    if (redis) await redis.set(`ticket:${rec.ticket}`, JSON.stringify(rec), "EX", 60 * 60 * 24 * 90);
+    else tickets.set(rec.ticket, rec);
   },
 
   // ── Bahasa pilihan (kedaluwarsa tengah malam) ──

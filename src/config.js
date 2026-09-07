@@ -27,6 +27,10 @@ export const config = {
 
   timezone: process.env.TIMEZONE || "Asia/Riyadh",
 
+  // Komplain
+  complaintWebhookUrl: process.env.COMPLAINT_WEBHOOK_URL || "",   // n8n webhook (opsional)
+  ticketStart: num(process.env.TICKET_START, 1042),                // nomor tiket pertama
+
   offTopicMax: num(process.env.OFFTOPIC_MAX, 3),
   lockMinutes: num(process.env.LOCK_MINUTES, 60),
   lockMessage: process.env.LOCK_MESSAGE || "This chat is locked for a few hours. Please message us again later.\nتم قفل هذه المحادثة لبضع ساعات. يرجى مراسلتنا لاحقاً.",

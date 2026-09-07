@@ -2,6 +2,7 @@
 import { searchProducts, getProduct, getBusinessHours, listCategories } from "./products.js";
 import { memory } from "../memory.js";
 import { config } from "../config.js";
+import { fileComplaint, phoneFromChatId } from "./complaints.js";
 
 export const tools = [
   {
@@ -93,6 +94,25 @@ export const tools = [
           : "Politely decline and steer back to the menu.",
       };
     },
+  },
+  {
+    def: {
+      type: "function",
+      name: "file_complaint",
+      description: "File a customer complaint as a ticket. Call ONLY after you have the customer's name, the location of the cafe they visited (street/area/landmark, as they describe it), and a clear description of what happened. Phone is auto-filled from WhatsApp when available; if the result says phone is missing, ask the customer for it. Returns the ticket number.",
+      parameters: {
+        type: "object",
+        properties: {
+          customer_name: { type: "string" },
+          phone: { type: "string", description: "only if the customer gave it; otherwise omit" },
+          address: { type: "string", description: "the cafe location as the customer describes it, e.g. 'King Saud road', 'near Apsco', 'Prince Naif street'. Keep their wording, in English." },
+          category: { type: "string", enum: ["ORDER", "SERVICE"], description: "ORDER = about the drink/food itself (wrong, cold, missing, quality). SERVICE = about staff, waiting, cleanliness, place." },
+          description: { type: "string", description: "one or two sentences in English, in the customer's words, e.g. 'The coffee was served cold.'" },
+        },
+        required: ["customer_name", "address", "category", "description"],
+      },
+    },
+    handler: fileComplaint,
   },
   {
     def: {

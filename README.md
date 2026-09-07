@@ -89,6 +89,23 @@ Menambah tool baru: tambah satu objek `{ def, handler }` di `src/tools/index.js`
 - Bahasa dan riwayat chat disimpan sampai **00:00 waktu `TIMEZONE`** (default Asia/Riyadh), lalu hilang. Setelah tengah malam, pesan berikutnya dianggap sesi baru dan ditanya bahasa lagi.
 - Teks pilihan bahasa & sambutan ada di `src/language.js`.
 
+## Komplain → tiket
+
+Bot tidak menyelesaikan komplain. Dia mengumpulkan nama, lokasi kafe (jalan/area sesuai kata pelanggan), dan kejadian, lalu memanggil `file_complaint` → tiket `CS-xxxx` (counter di Redis, mulai `TICKET_START`). Kategori ORDER/SERVICE diputuskan GPT. Nomor HP diambil dari WhatsApp kalau tersedia (`@c.us`); kalau engine memberi `@lid`, bot menanyakan nomornya.
+
+Tiket disimpan di Redis (`ticket:CS-xxxx`, 90 hari) dan, kalau `COMPLAINT_WEBHOOK_URL` diisi, dikirim sebagai JSON POST (header `X-Webhook-Secret` ikut):
+
+```json
+{
+  "ticket": "CS-1042",
+  "customer": { "name": "Nawaf Al-Otaibi", "phone": "+966 55 214 8890" },
+  "address": "King Saud 1",
+  "issue": { "category": "ORDER", "description": "The coffee was served cold." },
+  "language": "en", "chat_id": "9665...@c.us",
+  "created_at": "2026-09-07T15:53:00.000Z", "status": "OPEN"
+}
+```
+
 ## Kunci otomatis (off-topic)
 
 Setiap pertanyaan di luar topik BON Cafe → GPT memanggil `mark_off_topic` → counter per chat naik (kedaluwarsa 6 jam). Peringatan ke-2 memberi tahu pelanggan bahwa satu lagi akan menghentikan chat. Pada ke-`OFFTOPIC_MAX` (default 3) bot mengirim `LOCK_MESSAGE` lalu **diam total** selama `LOCK_MINUTES` (default 60): tidak dibaca, tidak typing, tidak dibalas. Setelah itu counter mulai dari nol.
