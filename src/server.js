@@ -1,6 +1,6 @@
 import express from "express";
 import { config } from "./config.js";
-import { waha } from "./waha.js";
+import { waha, resolvePhone } from "./waha.js";
 import { debounce } from "./debounce.js";
 import { enqueue, queueStats } from "./queue.js";
 import { generateReply } from "./ai.js";
@@ -27,6 +27,8 @@ const isGreeting = (t) => /^(hi|hello|hey|hai|halo|salam|hola|السلام عل�
 
 app.get("/", (_req, res) => res.json({ ok: true, name: "wa-gpt-bot", queue: queueStats() }));
 app.get("/health", (_req, res) => res.send("ok"));
+
+const phoneCache = new Map(); // chatId -> phone digits (in-memory, cukup)
 
 app.post("/webhook", async (req, res) => {
   // Balas 200 SEGERA — WAHA tidak boleh menunggu GPT
@@ -70,6 +72,13 @@ app.post("/webhook", async (req, res) => {
 
   waha.sendSeen(chatId); // centang biru langsung → terasa "dibaca"
 
+  // Nomor HP pelanggan: dari chatId, payload, atau tanya WAHA (lid → pn). Di-cache per chat.
+  if (!phoneCache.has(chatId)) {
+    const ph = await resolvePhone(chatId, payload);
+    phoneCache.set(chatId, ph);
+    if (ph) console.log(`[phone] ${chatId} → ${ph}`);
+  }
+
   debounce(chatId, text, { messageId }, (id, combined) => {
     enqueue(id, async () => {
       if (await memory.isLocked(id)) return; // terkunci saat pesan masih di buffer
@@ -106,7 +115,7 @@ app.post("/webhook", async (req, res) => {
       const t0 = Date.now();
       await waha.startTyping(id); // typing SEBELUM panggil GPT, bukan sesudah
       try {
-        const { text, locked } = await generateReply(id, combined, lang);
+        const { text, locked } = await generateReply(id, combined, lang, phoneCache.get(id) || null);
         if (locked) {
           await waha.stopTyping(id);
           await waha.sendText(id, config.lockMessage);

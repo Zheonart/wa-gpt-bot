@@ -9,8 +9,8 @@ import { memory } from "./memory.js";
 const client = new OpenAI({ apiKey: config.openai.apiKey });
 const MAX_TOOL_ROUNDS = 8;
 
-export async function generateReply(chatId, userText, lang = "en") {
-  const ctx = { chatId, locked: false, lang };
+export async function generateReply(chatId, userText, lang = "en", phone = null) {
+  const ctx = { chatId, locked: false, lang, phone };
   const history = await memory.get(chatId);
   const input = [...history, { role: "user", content: userText }];
   const newItems = [{ role: "user", content: userText }];

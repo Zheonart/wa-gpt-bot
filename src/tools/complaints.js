@@ -7,18 +7,22 @@ import { memory } from "../memory.js";
 export const CATEGORIES = ["ORDER", "SERVICE"];
 
 // "966501234567@c.us" → "+966 50 123 4567"; "@lid" → null (harus tanya pelanggan)
-export function phoneFromChatId(chatId) {
-  const m = /^(\d{8,15})@c\.us$/.exec(chatId || "");
-  if (!m) return null;
-  const d = m[1];
+export function formatPhone(digits) {
+  const d = (digits || "").replace(/\D/g, "");
+  if (!d) return null;
   if (d.startsWith("966") && d.length === 12) return `+966 ${d.slice(3, 5)} ${d.slice(5, 8)} ${d.slice(8)}`;
   return `+${d}`;
+}
+
+export function phoneFromChatId(chatId) {
+  const m = /^(\d{8,15})@c\.us$/.exec(chatId || "");
+  return m ? formatPhone(m[1]) : null;
 }
 
 export async function fileComplaint({ customer_name, phone, address, category, description }, ctx) {
   const cat = CATEGORIES.includes((category || "").toUpperCase()) ? category.toUpperCase() : "SERVICE";
   const addr = (address || "").trim();
-  const ph = phone || phoneFromChatId(ctx.chatId);
+  const ph = phone || (ctx.phone ? formatPhone(ctx.phone) : null) || phoneFromChatId(ctx.chatId);
   if (!customer_name || !ph || !addr || !description) {
     return { error: "missing_fields", need: [!customer_name && "customer_name", !ph && "phone", !addr && "address", !description && "description"].filter(Boolean) };
   }
