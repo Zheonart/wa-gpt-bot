@@ -77,7 +77,7 @@ const PRODUCTS = [
   P("Water Berain 600 mL", 2, "other"),
 ].map((p, i) => ({ sku: `BON-${String(i + 1).padStart(3, "0")}`, currency: "SAR", ...p }));
 
-const HOURS = { open: "07:00", close: "01:00", days: "Every day", note: "Confirm with staff for holidays" };
+const HOURS = { open_24_hours: true, days: "Every day, including holidays", note: "BON Cafe is open 24/7 — never closes" };
 
 const norm = (s) => (s || "").toLowerCase().trim();
 

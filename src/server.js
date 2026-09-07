@@ -6,6 +6,7 @@ import { enqueue, queueStats } from "./queue.js";
 import { generateReply } from "./ai.js";
 import { sendHumanLike } from "./reply.js";
 import { memory } from "./memory.js";
+import { LANG_PROMPT, LANG_RETRY, WELCOME, parseLangChoice } from "./language.js";
 
 const app = express();
 app.use(express.json({ limit: "2mb" }));
@@ -21,6 +22,8 @@ function isDuplicate(id) {
   if (seen.size > 5000) for (const [k, t] of seen) if (now - t > SEEN_TTL) seen.delete(k);
   return false;
 }
+
+const isGreeting = (t) => /^(hi|hello|hey|hai|halo|salam|hola|السلام عليكم|سلام|مرحبا|هلا|اهلا|أهلا)[\s!.,]*$/i.test((t || "").trim());
 
 app.get("/", (_req, res) => res.json({ ok: true, name: "wa-gpt-bot", queue: queueStats() }));
 app.get("/health", (_req, res) => res.send("ok"));
@@ -70,10 +73,32 @@ app.post("/webhook", async (req, res) => {
   debounce(chatId, text, { messageId }, (id, combined) => {
     enqueue(id, async () => {
       if (await memory.isLocked(id)) return; // terkunci saat pesan masih di buffer
+
+      // ── Sesi harian: belum pilih bahasa hari ini? ──
+      let lang = await memory.getLang(id);
+      if (!lang) {
+        const choice = parseLangChoice(combined);
+        if (!choice) {
+          // Pesan pertama hari ini bukan pilihan bahasa → tahan pesannya, tanya bahasa.
+          // Kalau sudah pernah ditanya dan masih bukan pilihan → ulangi dengan versi singkat.
+          const held = await memory.popPending(id);
+          await memory.setPending(id, held || combined);
+          await waha.sendText(id, held ? LANG_RETRY : LANG_PROMPT);
+          return;
+        }
+        await memory.setLang(id, choice);
+        lang = choice;
+        await waha.sendText(id, WELCOME[lang]);
+        // Kalau tadi ada pertanyaan yang tertahan, jawab sekarang
+        const held = await memory.popPending(id);
+        if (!held || isGreeting(held)) return; // sapaan saja tidak perlu dijawab lagi
+        combined = held;
+      }
+
       const t0 = Date.now();
       await waha.startTyping(id); // typing SEBELUM panggil GPT, bukan sesudah
       try {
-        const { text, locked } = await generateReply(id, combined);
+        const { text, locked } = await generateReply(id, combined, lang);
         if (locked) {
           await waha.stopTyping(id);
           await waha.sendText(id, config.lockMessage);

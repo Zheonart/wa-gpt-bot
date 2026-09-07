@@ -2,26 +2,26 @@
 // Riwayat dikelola sendiri (Redis/memori), jadi model tidak perlu previous_response_id.
 import OpenAI from "openai";
 import { config } from "./config.js";
-import { systemPrompt } from "./prompt.js";
+import { systemPrompt, languageLine } from "./prompt.js";
 import { toolDefs, runTool } from "./tools/index.js";
 import { memory } from "./memory.js";
 
 const client = new OpenAI({ apiKey: config.openai.apiKey });
 const MAX_TOOL_ROUNDS = 8;
 
-export async function generateReply(chatId, userText) {
+export async function generateReply(chatId, userText, lang = "en") {
   const ctx = { chatId, locked: false };
   const history = await memory.get(chatId);
   const input = [...history, { role: "user", content: userText }];
   const newItems = [{ role: "user", content: userText }];
 
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
-        const res = await client.responses.create({
+    const res = await client.responses.create({
       model: config.openai.model,
-      instructions: systemPrompt, // statis di depan → kena prompt cache
+      instructions: systemPrompt + "\n\n" + languageLine(lang), // bagian statis di depan → kena prompt cache
       input,
       tools: toolDefs,
-      reasoning: { effort: "low" },
+      ...(config.openai.reasoningEffort ? { reasoning: { effort: config.openai.reasoningEffort } } : {}),
     });
 
     const calls = res.output.filter((o) => o.type === "function_call");
@@ -33,7 +33,8 @@ export async function generateReply(chatId, userText) {
       return { text, locked: ctx.locked };
     }
 
-    // Kirim balik SELURUH output (termasuk item reasoning — wajib untuk model gpt-5/o-series)
+    // Kirim balik SELURUH output (termasuk item reasoning — wajib untuk model gpt-5/o-series),
+    // lalu jalankan tiap tool call dan tambahkan hasilnya
     input.push(...res.output);
     for (const call of calls) {
       let args = {};

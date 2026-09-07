@@ -2,10 +2,22 @@
 import Redis from "ioredis";
 import { config } from "./config.js";
 
-const TTL_SECONDS = 60 * 60 * 24 * 3; // riwayat kedaluwarsa 3 hari tanpa aktivitas
+// Detik tersisa sampai 00:00 berikutnya di zona waktu bisnis.
+// Riwayat dan bahasa pilihan kedaluwarsa tepat tengah malam → hari baru = sesi baru.
+export function secondsUntilMidnight(tz = config.timezone) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz, hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+  }).formatToParts(new Date());
+  const get = (t) => Number(parts.find((p) => p.type === t).value);
+  const elapsed = (get("hour") % 24) * 3600 + get("minute") * 60 + get("second");
+  return Math.max(60, 86400 - elapsed);
+}
 let redis = null;
 const mem = new Map();
 const strikes = new Map(); // chatId -> { n, exp }
+const langs = new Map();   // chatId -> { lang, exp }
+const pending = new Map(); // chatId -> { text, exp }
+const memExp = new Map();  // chatId -> exp riwayat (fallback tanpa Redis)
 const locks = new Map();   // chatId -> untilTimestamp
 const STRIKE_TTL = 6 * 60 * 60;
 
@@ -25,6 +37,8 @@ export const memory = {
       const raw = await redis.get(key(chatId));
       return raw ? JSON.parse(raw) : [];
     }
+    const exp = memExp.get(chatId);
+    if (exp && Date.now() > exp) { mem.delete(chatId); memExp.delete(chatId); }
     return mem.get(chatId) || [];
   },
 
@@ -32,13 +46,44 @@ export const memory = {
     const hist = (await this.get(chatId)).concat(items);
     // simpan hanya N giliran terakhir (user+assistant = 2 item per giliran)
     const trimmed = hist.slice(-config.historyTurns * 2);
-    if (redis) await redis.set(key(chatId), JSON.stringify(trimmed), "EX", TTL_SECONDS);
-    else mem.set(chatId, trimmed);
+    const ttl = secondsUntilMidnight();
+    if (redis) await redis.set(key(chatId), JSON.stringify(trimmed), "EX", ttl);
+    else { mem.set(chatId, trimmed); memExp.set(chatId, Date.now() + ttl * 1000); }
   },
 
   async clear(chatId) {
-    if (redis) await redis.del(key(chatId), `strike:${chatId}`, `lock:${chatId}`);
-    else { mem.delete(chatId); strikes.delete(chatId); locks.delete(chatId); }
+    if (redis) await redis.del(key(chatId), `strike:${chatId}`, `lock:${chatId}`, `lang:${chatId}`, `pending:${chatId}`);
+    else { mem.delete(chatId); memExp.delete(chatId); strikes.delete(chatId); locks.delete(chatId); langs.delete(chatId); pending.delete(chatId); }
+  },
+
+  // ── Bahasa pilihan (kedaluwarsa tengah malam) ──
+  async getLang(chatId) {
+    if (redis) return (await redis.get(`lang:${chatId}`)) || null;
+    const e = langs.get(chatId);
+    if (!e) return null;
+    if (Date.now() > e.exp) { langs.delete(chatId); return null; }
+    return e.lang;
+  },
+  async setLang(chatId, lang) {
+    const ttl = secondsUntilMidnight();
+    if (redis) await redis.set(`lang:${chatId}`, lang, "EX", ttl);
+    else langs.set(chatId, { lang, exp: Date.now() + ttl * 1000 });
+  },
+
+  // ── Pesan yang tertahan sementara menunggu pilihan bahasa ──
+  async setPending(chatId, text) {
+    if (redis) await redis.set(`pending:${chatId}`, text, "EX", 600);
+    else pending.set(chatId, { text, exp: Date.now() + 600_000 });
+  },
+  async popPending(chatId) {
+    if (redis) {
+      const t = await redis.get(`pending:${chatId}`);
+      if (t) await redis.del(`pending:${chatId}`);
+      return t || null;
+    }
+    const e = pending.get(chatId);
+    pending.delete(chatId);
+    return e && Date.now() < e.exp ? e.text : null;
   },
 
   // ── Off-topic strikes (kedaluwarsa 6 jam) ──

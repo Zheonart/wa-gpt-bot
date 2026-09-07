@@ -6,6 +6,8 @@ export const config = {
   openai: {
     apiKey: process.env.OPENAI_API_KEY,
     model: process.env.OPENAI_MODEL || "gpt-5-mini",
+    // "minimal" / "low" = jawaban cepat untuk chatbot. Kosongkan kalau model tidak mendukung reasoning.
+    reasoningEffort: process.env.OPENAI_REASONING_EFFORT ?? "low",
   },
 
   waha: {
@@ -23,9 +25,11 @@ export const config = {
   replyGapMinMs: num(process.env.REPLY_GAP_MIN_MS, 900),
   replyGapMaxMs: num(process.env.REPLY_GAP_MAX_MS, 2200),
 
+  timezone: process.env.TIMEZONE || "Asia/Riyadh",
+
   offTopicMax: num(process.env.OFFTOPIC_MAX, 3),
   lockMinutes: num(process.env.LOCK_MINUTES, 60),
-  lockMessage: process.env.LOCK_MESSAGE || "This chat is locked for a few hours. Please message us again later if you need anything from BON Cafe.",
+  lockMessage: process.env.LOCK_MESSAGE || "This chat is locked for a few hours. Please message us again later.\nتم قفل هذه المحادثة لبضع ساعات. يرجى مراسلتنا لاحقاً.",
 
   botName: process.env.BOT_NAME || "Mia",
   businessName: process.env.BUSINESS_NAME || "BON Cafe",

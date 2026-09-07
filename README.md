@@ -83,6 +83,12 @@ Menambah tool baru: tambah satu objek `{ def, handler }` di `src/tools/index.js`
 | `MAX_CONCURRENT` | 8 | Jumlah chat diproses bersamaan |
 | `HISTORY_TURNS` | 20 | Konteks yang diingat per chat |
 
+## Sesi harian & bahasa
+
+- Pesan pertama dari sebuah nomor **hari ini** → bot mengirim pilihan bahasa (dwibahasa): 1 English / 2 العربية. Pesan pelanggan ditahan dan dijawab setelah bahasa dipilih.
+- Bahasa dan riwayat chat disimpan sampai **00:00 waktu `TIMEZONE`** (default Asia/Riyadh), lalu hilang. Setelah tengah malam, pesan berikutnya dianggap sesi baru dan ditanya bahasa lagi.
+- Teks pilihan bahasa & sambutan ada di `src/language.js`.
+
 ## Kunci otomatis (off-topic)
 
 Setiap pertanyaan di luar topik BON Cafe → GPT memanggil `mark_off_topic` → counter per chat naik (kedaluwarsa 6 jam). Peringatan ke-2 memberi tahu pelanggan bahwa satu lagi akan menghentikan chat. Pada ke-`OFFTOPIC_MAX` (default 3) bot mengirim `LOCK_MESSAGE` lalu **diam total** selama `LOCK_MINUTES` (default 60): tidak dibaca, tidak typing, tidak dibalas. Setelah itu counter mulai dari nol.
